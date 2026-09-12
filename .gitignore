@@ -1,0 +1,37 @@
+# ===== 目标应用资产（版权风险，严禁提交）=====
+# 官方原始 APK 及其中间改包产物
+apk/
+mod_apk/work/
+*.aab
+*.dex
+*.jks
+*.keystore
+
+# ===== 第三方大体积工具（可自行下载）=====
+tools/jadx-*.jar
+tools/jadx-*.zip
+tools/lib/*.jar
+
+# ===== 凭据与隐私 =====
+*cookie*
+*token*
+*.log
+logcat*
+flows.mitm
+mitmconf/
+
+# ===== 打包与缓存 =====
+*.zip
+__pycache__/
+*.pyc
+*.class
+build/
+out/
+
+# ===== 工作区内部目录 =====
+.memory/
+.swarm/
+.preview_tmp/
+
+# ===== 反编译产物（已瘦身并单独打包为 zip，不进仓库）=====
+decompiled/

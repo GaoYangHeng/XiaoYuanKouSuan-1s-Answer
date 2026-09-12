@@ -1,0 +1,30 @@
+# 目标应用资产（版权，严禁提交）
+*.aab
+*.dex
+*.jks
+*.keystore
+
+# 自有成品 APK 仅允许 release/ 目录（.gitignore 不放行其他位置）
+*.apk
+!release/*.apk
+
+# 凭据与隐私
+*cookie*
+*token*
+*.log
+logcat*
+flows.mitm
+
+# 构建产物
+build/
+out/
+classes*/
+*.class
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+__pycache__/
+*.pyc
