@@ -22,7 +22,7 @@ adb install -r release/xiaoyuan-kousuan-1s-answer-v52.apk
 
 1. **必须用「短信验证码」登录**（一键登录 / QQ / 微信会因改包签名被服务端拒绝）
 2. **进入对局页之前**先点悬浮按钮开启（先进对局再点，题目已加载完，不会触发）
-3. 打完一局有**约 60 秒匹配冷却**，这是服务端硬限制
+3. 打完一局可能有**约 60 秒匹配冷却**，这是服务端硬限制
 
 → 完整使用说明见 [`opensource/README.md`](opensource/README.md)
 → 想搞懂原理自己复刻？直奔 **[`TECHNICAL_REPORT.md`](TECHNICAL_REPORT.md)**
