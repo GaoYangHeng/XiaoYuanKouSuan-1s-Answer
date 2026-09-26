@@ -243,7 +243,7 @@ public class PkHelper {
                     + "ns=' + JSON.stringify(ans)); return true; } var r = String(ans[0]); window.__pkRecv += 1; wi" 
                     + "ndow.__pkCurAns = r; window.__pkLastRecv = Date.now(); window.__pkFastUntil = Date.now() + 4" 
                     + "00; log('recognize #' + window.__pkRecv + ' ans=' + JSON.stringify(ans) + ' ret=' + r); var " 
-                    + "d = (window.__pkDelay || 12) + Math.floor(Math.random() * (window.__pkJit || 12)); setTimeout(function () { try { if (window[t]) { win" 
+                    + "d = Math.min(window.__pkDelay || 12, 60) + Math.floor(Math.random() * 12); setTimeout(function () { try { if (window[t]) { win" 
                     + "dow[t](b64e([null, r])); } } catch (e) { log('cb err ' + e); } }, d); return true; } catch (" 
                     + "e) { log('rec err ' + e); return true; } } }; var S1 = { '<': [[[.62, .32], [.5, .43], [.38," 
                     + " .5], [.5, .58], [.61, .68]]], '>': [[[.38, .32], [.5, .43], [.62, .5], [.5, .58], [.39, .68" 
@@ -301,8 +301,8 @@ public class PkHelper {
                     + "ength) { clearTimeout(guard); if (!finished) { finished = true; done(); } return; } var pts " 
                     + "= strokes[si]; si += 1; down(pad.el, pts[0].x, pts[0].y); var i = 1; (function step() { if (" 
                     + "aborted) { return; } if (i < pts.length) { move(pad.el, pts[i].x, pts[i].y); i += 1; setTime" 
-                    + "out(step, window.__pkHuman ? 2 + Math.floor(Math.random() * 3) : 1); } else { up(pad.el, pts[i - 1].x, pts[i - 1].y" 
-                    + "); setTimeout(nextStroke, window.__pkHuman ? 6 + Math.floor(Math.random() * 8) : 1); } })(); } nextStroke(); } wind" 
+                    + "out(step, 2 + Math.floor(Math.random() * 3)); } else { up(pad.el, pts[i - 1].x, pts[i - 1].y" 
+                    + "); setTimeout(nextStroke, 6 + Math.floor(Math.random() * 8)); } })(); } nextStroke(); } wind" 
                     + "ow.__pkWrite = write; window.__pkAutoStart = function (iv, max) { var n = 0; window.__pkRecv" 
                     + " = 0; window.__pkBusy = 0; window.__pkDraw = 0; window.__pkMode = 1; window.__pkSwallow = 0;" 
                     + " window.__pkStartT = Date.now(); window.__pkModeT = 0; if (window.__pkTimer) { clearInterval" 
@@ -862,17 +862,17 @@ public class PkHelper {
         try {
             lastRecvCount = 0;
             setStatus(activity, "自动中·点此关闭", "");
-            // 注入设置项：单局时间 → 每题回调延迟（delay = 目标耗时/题数 - H5 固定开销约50ms）；
-            // 人类化笔记开关/强度 → JS 侧 buildStrokes 抖动与步进节奏
+            // 注入设置项：单局时间 → 每题回调延迟（JS 侧 min(...,60) 封顶，保证回调节奏贴近原版 10-21ms，
+            // 否则延迟过大 H5 识别超时不判题 → 卡在同一题反复画笔迹）；
+            // 人类化笔记开关/强度 → JS 侧 buildStrokes 坐标抖动（不影响判题推进）
             int qn = engine.getQuestionCount() > 0 ? engine.getQuestionCount() : 30;
             int perQ = PkSettings.getRoundTime(activity) * 1000 / qn;
             int pkDelay = Math.max(10, perQ - 50);
-            int pkJit = Math.max(5, Math.min(300, pkDelay / 2));
             evalJs(currentWebView,
-                    "window.__pkDelay=" + pkDelay + ";window.__pkJit=" + pkJit
+                    "window.__pkDelay=" + pkDelay
                             + ";window.__pkHuman=" + (PkSettings.getHumanStroke(activity) ? 1 : 0)
                             + ";window.__pkInt=" + PkSettings.getIntensity(activity) + ";", false);
-            android.util.Log.i("PkHelper", "settings delay=" + pkDelay + " jit=" + pkJit
+            android.util.Log.i("PkHelper", "settings delay=" + pkDelay + " (cap 60 in JS)"
                     + " roundTime=" + PkSettings.getRoundTime(activity) + "s q=" + qn);
             evalJs(currentWebView, AUTO_ANSWER_JS, false);
             android.util.Log.i("PkHelper", "AUTO_ANSWER_JS injected");

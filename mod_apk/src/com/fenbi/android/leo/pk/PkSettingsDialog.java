@@ -58,10 +58,10 @@ public class PkSettingsDialog {
 
         root.addView(sep(activity));
 
-        // ---------- 1. 单局时间（秒）----------
+        // ---------- 1. 单局时间（秒，1-4；更大值受回调封顶限制无效）----------
         final TextView roundVal = new TextView(activity);
-        SeekBar round = seek(activity, 1, 60, PkSettings.getRoundTime(activity) - 1);
-        row(root, "单局时间", "自动答完一局的目标耗时", roundVal, "秒");
+        SeekBar round = seek(activity, 1, 4, PkSettings.getRoundTime(activity) - 1);
+        row(root, "单局时间", "自动答完一局的目标耗时（1-4 秒）", roundVal, "秒");
         roundVal.setText(String.valueOf(PkSettings.getRoundTime(activity)));
         round.setOnSeekBarChangeListener(new SimpleSeek() {
             @Override
