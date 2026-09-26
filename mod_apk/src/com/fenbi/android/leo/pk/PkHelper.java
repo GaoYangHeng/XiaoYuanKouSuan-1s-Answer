@@ -8,8 +8,14 @@ import android.os.Looper;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
 import android.widget.Toast;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -50,6 +56,34 @@ public class PkHelper {
     private static Context appContext;
 
     /**
+     * 全量抓包落盘：把每一个 leo 域名请求/响应逐行追加到 app 私有文件，
+     * 路径 /sdcard/Android/data/com.fenbi.android.leo/files/pk_capture.log（无需存储权限）。
+     * 跑完一局后 adb pull 该文件即可拿到完整交互记录。
+     */
+    private static BufferedWriter capW;
+    private static final String CAP_TAG = "PKCAP:";
+
+    private static synchronized void capture(String line) {
+        try {
+            if (capW == null && appContext != null) {
+                File dir = appContext.getExternalFilesDir(null);
+                if (dir == null) {
+                    dir = appContext.getFilesDir();
+                }
+                File f = new File(dir, "pk_capture.log");
+                capW = new BufferedWriter(new FileWriter(f, true));
+            }
+            if (capW != null) {
+                String ts = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(new Date());
+                capW.write(CAP_TAG + ts + " | " + line + "\n");
+                capW.flush();
+            }
+        } catch (Throwable t) {
+            android.util.Log.i("PkHelper", "capture err " + t);
+        }
+    }
+
+    /**
      * 只在数学 PK 的两个页面生效：PK 选择页(pk.html) 与数学对局页(exercise.html)。
      * 明确排除：
      *  - 语文 leo-web-poem-pk（玩法不同，实测点开始 PK 会报"人太多了"并被踢出）
@@ -78,6 +112,11 @@ public class PkHelper {
                 @Override
                 public void run() {
                     handleMainClick(activity);
+                }
+            }, new Runnable() {
+                @Override
+                public void run() {
+                    PkSettingsDialog.show(activity);
                 }
             });
             // 登记到按钮列表，供 setStatus 全量刷新（上限放宽，避免老页面按钮被挤出列表后文案不更新）
@@ -128,6 +167,21 @@ public class PkHelper {
                 };
             } else if (state == ST_ARMED && url != null && url.contains("pk.html")) {
                 setStatus(activity, "已就绪·点此关闭", "");
+            } else if (state == ST_IDLE && url != null
+                    && (url.contains("exercise.html") || url.contains("pk.html"))
+                    && PkSettings.getAutoArm(activity)) {
+                // 设置项「自动开启」：进入 PK 页免点按钮直接武装
+                state = ST_ARMED;
+                autoSubmitted = false;
+                submitting = false;
+                engine.onExamCaptured = new Runnable() {
+                    @Override
+                    public void run() {
+                        onCaptured(activity);
+                    }
+                };
+                setStatus(activity, url.contains("exercise.html") ? "自动中·点此关闭" : "已就绪·点此关闭", "");
+                android.util.Log.i("PkHelper", "auto-armed by settings");
             }
             installHook(activity);
         } catch (Throwable t) {
@@ -189,7 +243,7 @@ public class PkHelper {
                     + "ns=' + JSON.stringify(ans)); return true; } var r = String(ans[0]); window.__pkRecv += 1; wi" 
                     + "ndow.__pkCurAns = r; window.__pkLastRecv = Date.now(); window.__pkFastUntil = Date.now() + 4" 
                     + "00; log('recognize #' + window.__pkRecv + ' ans=' + JSON.stringify(ans) + ' ret=' + r); var " 
-                    + "d = 10 + Math.floor(Math.random() * 12); setTimeout(function () { try { if (window[t]) { win" 
+                    + "d = (window.__pkDelay || 12) + Math.floor(Math.random() * (window.__pkJit || 12)); setTimeout(function () { try { if (window[t]) { win" 
                     + "dow[t](b64e([null, r])); } } catch (e) { log('cb err ' + e); } }, d); return true; } catch (" 
                     + "e) { log('rec err ' + e); return true; } } }; var S1 = { '<': [[[.62, .32], [.5, .43], [.38," 
                     + " .5], [.5, .58], [.61, .68]]], '>': [[[.38, .32], [.5, .43], [.62, .5], [.5, .58], [.39, .68" 
@@ -210,12 +264,12 @@ public class PkHelper {
                     + "[[[.5, .4], [.5, .41]], [[.5, .6], [.5, .61]]] }; var FALLBACK = [[[.38, .58], [.44, .36], [" 
                     + ".54, .38], [.58, .54], [.5, .66], [.42, .62]]]; function charStrokes(ch) { return S1[ch] || " 
                     + "FALLBACK; } function jitter(v, amp) { return v + (Math.random() * 2 - 1) * amp; } function b" 
-                    + "uildStrokes(ans, r) { var chars = String(ans).split(''); if (!chars.length) { chars = ['?'];" 
+                    + "uildStrokes(ans, r) { var HF = window.__pkHuman ? (0.4 + (window.__pkInt || 50) / 100 * 1.2) : 0; var chars = String(ans).split(''); if (!chars.length) { chars = ['?'];" 
                     + " } var n = chars.length; var cw = Math.min(.5, .72 / n); var x0 = .5 - (n * cw) / 2; var out" 
                     + " = [], k, ch, st, i, j, p, nx, ny; for (k = 0; k < n; k++) { ch = chars[k]; st = charStrokes" 
                     + "(ch); for (i = 0; i < st.length; i++) { var pts = []; for (j = 0; j < st[i].length; j++) { p" 
                     + " = st[i][j]; nx = x0 + k * cw + p[0] * cw; ny = .3 + p[1] * .55; pts.push({ x: r.left + r.wi" 
-                    + "dth * jitter(nx, .006), y: r.top + r.height * jitter(ny, .008) }); } out.push(pts); } } retu" 
+                    + "dth * jitter(nx, .006 * HF), y: r.top + r.height * jitter(ny, .008 * HF) }); } out.push(pts); } } retu" 
                     + "rn out; } function padCanvas() { var l = document.querySelectorAll('canvas'), pads = [], oth" 
                     + "ers = [], i, c, r, ta; for (i = 0; i < l.length; i++) { c = l[i]; r = c.getBoundingClientRec" 
                     + "t(); if (r.width < 100 || r.height < 50) { continue; } ta = (c.style && c.style.touchAction)" 
@@ -247,8 +301,8 @@ public class PkHelper {
                     + "ength) { clearTimeout(guard); if (!finished) { finished = true; done(); } return; } var pts " 
                     + "= strokes[si]; si += 1; down(pad.el, pts[0].x, pts[0].y); var i = 1; (function step() { if (" 
                     + "aborted) { return; } if (i < pts.length) { move(pad.el, pts[i].x, pts[i].y); i += 1; setTime" 
-                    + "out(step, 2 + Math.floor(Math.random() * 3)); } else { up(pad.el, pts[i - 1].x, pts[i - 1].y" 
-                    + "); setTimeout(nextStroke, 6 + Math.floor(Math.random() * 8)); } })(); } nextStroke(); } wind" 
+                    + "out(step, window.__pkHuman ? 2 + Math.floor(Math.random() * 3) : 1); } else { up(pad.el, pts[i - 1].x, pts[i - 1].y" 
+                    + "); setTimeout(nextStroke, window.__pkHuman ? 6 + Math.floor(Math.random() * 8) : 1); } })(); } nextStroke(); } wind" 
                     + "ow.__pkWrite = write; window.__pkAutoStart = function (iv, max) { var n = 0; window.__pkRecv" 
                     + " = 0; window.__pkBusy = 0; window.__pkDraw = 0; window.__pkMode = 1; window.__pkSwallow = 0;" 
                     + " window.__pkStartT = Date.now(); window.__pkModeT = 0; if (window.__pkTimer) { clearInterval" 
@@ -291,6 +345,34 @@ public class PkHelper {
             ">= 0)) { el.click(); return 'clicked:' + tx; } } } catch (e) { return 'err:' + e; } try { location.reload(); retu" +
             "rn 'reload'; } catch (e2) { return 'reloaderr:' + e2; } }; } })(); }";
 
+    /**
+     * 全量请求捕获：hook 网页里所有 XHR / fetch，把发出去的全部请求上报到 logcat。
+     *  - 非匹配请求只打一行（REQ1 XHR/FETCH method url）
+     *  - 匹配/pk 相关请求打完整信息（REQFULL + REQH 全部请求头 + REQBODY）
+     * match/v2 由网页 JS 发出、不经过 OkHttp 拦截器，只有这个 JS 层 hook 能看到它。
+     * 通过 PkBridge.pkLog 上抛 → native Log.i("PkHelper","JS ...")。
+     * 链式包装（保存注入时刻的 prototype 原方法），与 HOOK_JS 可叠加共存。
+     */
+    private static final String REQ_JS =
+            "if(!window.__pkReqCap){window.__pkReqCap=1;(function(){"
+                    + "function log(m){try{if(window.PkHook&&PkHook.pkLog){PkHook.pkLog(m);}}catch(e){}}"
+                    + "function isPk(u){return !!u&&(u.indexOf('/match')>=0||u.indexOf('leo-game-pk')>=0||u.indexOf('/pk/')>=0);}"
+                    + "var op=XMLHttpRequest.prototype.open,sr=XMLHttpRequest.prototype.setRequestHeader,sd=XMLHttpRequest.prototype.send;"
+                    + "XMLHttpRequest.prototype.open=function(m,u){try{this.__c={m:m,u:u,h:{}};}catch(e){}return op.apply(this,arguments);};"
+                    + "XMLHttpRequest.prototype.setRequestHeader=function(k,v){try{if(this.__c){this.__c.h[k]=v;}}catch(e){}return sr.apply(this,arguments);};"
+                    + "XMLHttpRequest.prototype.send=function(b){var x=this;try{if(x.__c){var c=x.__c,pk=isPk(c.u);"
+                    + "log((pk?'REQFULL ':'REQ1 ')+'XHR '+c.m+' '+c.u);if(pk){try{log('REQH '+JSON.stringify(c.h));}catch(e){}if(b){try{var bl=(b.byteLength!==undefined)?b.byteLength:-1;log('REQBODY '+(typeof b==='string'?b.substring(0,1500):'['+Object.prototype.toString.call(b)+' len='+bl+']'));}catch(e){}}}}"
+                    + "}catch(e){}return sd.apply(this,arguments);};"
+                    + "var f=window.fetch;if(f){window.fetch=function(){var a=arguments,u=(typeof a[0]==='string')?a[0]:((a[0]&&a[0].url)||''),i=a[1]||{};try{var pk=isPk(u),hd={};"
+                    + "try{if(window.Headers&&i.headers&&typeof i.headers.forEach==='function'){i.headers.forEach(function(v,k){hd[k]=v;});}else if(i.headers){hd=i.headers;}}catch(e){}"
+                    + "var bd=(typeof i.body==='string')?i.body:'';if(!bd&&i.body){try{bd='['+Object.prototype.toString.call(i.body)+']';}catch(e){bd='[?]';}}"
+                    + "log((pk?'REQFULL ':'REQ1 ')+'FETCH '+(i.method||'GET')+' '+u);if(pk){try{log('REQH '+JSON.stringify(hd));}catch(e){}if(bd){try{log('REQBODY '+bd.substring(0,1500));}catch(e){}}}}catch(e){}return f.apply(this,a);};}"
+                    + "log('REQCAP ok');"
+                    + "try{log('REQCOOKIE '+document.cookie);}catch(e){try{log('REQCOOKIE ERR '+e);}catch(_e){}}"
+                    + "try{var _l1='';for(var _i1=0;_i1<localStorage.length;_i1++){var _k1=localStorage.key(_i1);_l1+='|'+_k1+'='+localStorage.getItem(_k1);}log('REQLS '+_l1);}catch(e){try{log('REQLS ERR '+e);}catch(_e){}}"
+                    + "try{var _l2='';for(var _i2=0;_i2<sessionStorage.length;_i2++){var _k2=sessionStorage.key(_i2);_l2+='|'+_k2+'='+sessionStorage.getItem(_k2);}log('REQSS '+_l2);}catch(e){try{log('REQSS ERR '+e);}catch(_e){}}"
+                    + "})();}";
+
     private static void installHook(final Activity activity) {
         // 立即首查（attach 时 super.onCreate 未完成，主队列 post(0) 会在其完成后执行），100ms 级重试抢在 match 前
         main.post(new Runnable() {
@@ -318,11 +400,35 @@ public class PkHelper {
                         android.util.Log.i("PkHelper", "bridge err " + t);
                     }
                     startLoops(x5);
+                    installReqCap(x5);
                 } catch (Throwable t) {
                     android.util.Log.i("PkHelper", "installHook err " + t);
                 }
             }
         });
+    }
+
+    /**
+     * 全量请求捕获注入：与 ARM 状态无关，进入 PK 页即反复注入 REQ_JS。
+     * 必须在 match 请求发出前挂上 hook；页面可能重载，故重试注入一段时间兜底。
+     */
+    private static void installReqCap(final Object x5) {
+        final int[] n = {0};
+        final Runnable[] r = new Runnable[1];
+        r[0] = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    evalJs(x5, REQ_JS, false);
+                } catch (Throwable t) {
+                    android.util.Log.i("PkHelper", "reqcap err " + t);
+                }
+                if (n[0]++ < 15) {
+                    main.postDelayed(r[0], 300);
+                }
+            }
+        };
+        main.post(r[0]);
     }
 
     public static class PkBridge {
@@ -365,6 +471,7 @@ public class PkHelper {
         @JavascriptInterface
         public void pkLog(final String msg) {
             android.util.Log.i("PkHelper", "JS " + msg);
+            capture("JS " + msg);
             if (msg != null && msg.startsWith("LOC ")) {
                 lastLocation = msg.substring(4);
             }
@@ -511,6 +618,26 @@ public class PkHelper {
         try {
             String url = response.request().url().toString();
             android.util.Log.i("PkHelper", "FLOW " + response.request().method() + " " + response.code() + " " + url);
+            // 全量落盘：所有请求都记录（请求行 + 请求头 + 响应状态）
+            capture("REQ " + response.request().method() + " " + url + " -> " + response.code());
+            try {
+                okhttp3.Headers h = response.request().headers();
+                for (int i = 0; i < h.size(); i++) {
+                    String v = h.value(i);
+                    if (v != null && v.length() > 400) v = v.substring(0, 400) + "...";
+                    capture("REQH " + h.name(i) + ": " + v);
+                }
+            } catch (Throwable ignore) {
+            }
+            try {
+                okhttp3.Headers rh = response.headers();
+                for (int i = 0; i < rh.size(); i++) {
+                    String v = rh.value(i);
+                    if (v != null && v.length() > 400) v = v.substring(0, 400) + "...";
+                    capture("RESPH " + rh.name(i) + ": " + v);
+                }
+            } catch (Throwable ignore) {
+            }
             try {
                 String ck = response.request().header("Cookie");
                 if (ck != null && ck.length() > 0) {
@@ -529,11 +656,15 @@ public class PkHelper {
             if (url != null && url.contains(MATCH_KEY)) {
                 lastMatchUrl = url;
                 android.util.Log.i("PkHelper", "MATCH hit " + url);
+                capture("MATCH hit " + url);
+                dumpRequest(response.request());
                 ResponseBody body = response.body();
                 if (body != null) {
                     byte[] bytes = body.bytes();
                     android.util.Log.i("PkHelper", "MATCH bodyLen=" + bytes.length
                             + " head=" + new String(bytes, 0, Math.min(32, bytes.length), "UTF-8"));
+                    capture("MATCH bodyLen=" + bytes.length + " b64="
+                            + android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP));
                     JSONObject examVO = engine.handleEncryptedResponse(bytes);
                     android.util.Log.i("PkHelper", "MATCH examVO=" + (examVO == null ? "NULL" : "ok"));
                     return response.newBuilder().body(ResponseBody.create(body.contentType(), bytes)).build();
@@ -546,6 +677,7 @@ public class PkHelper {
                 if (body != null) {
                     byte[] bytes = body.bytes();
                     android.util.Log.i("PkHelper", "ERROR " + response.code() + " " + url + " BODY=" + new String(bytes, "UTF-8"));
+                    capture("RESP " + response.code() + " " + url + " BODY=" + new String(bytes, "UTF-8"));
                     return response.newBuilder().body(ResponseBody.create(body.contentType(), bytes)).build();
                 }
             }
@@ -618,13 +750,17 @@ public class PkHelper {
                 // 计数跟着"重试动作"走（每 3s +1），这样即便没收到失败响应，用户也能看到数字在跳
                 retryCount++;
                 showRetryBar(true, "匹配失败，重试中(" + retryCount + ")…");
+                // 匹配失败页往往是新 document（原 hook 随旧页销毁 → __pkRetryMatch 找不到 → no-fn 空转），
+                // 这里先幂等重注入 HOOK_JS（有 __pkHook 守卫），保证重试函数存在。
+                evalJs(currentWebView, HOOK_JS, false);
                 evalJs(currentWebView,
                         "(function(){try{ var r = (typeof window.__pkRetryMatch==='function') ? window.__pkRetryMatch()"
                                 + " : 'no-fn'; try{ if(window.PkHook){PkHook.pkLog('RETRY '+r);} }catch(e2){} return r;}"
                                 + "catch(e){return 'err:'+e}})()", false);
                 // 服务端限流判定就是"请求过于频繁"，重试过快会持续坐实该判定并重置冷却。
-                // 实测账号冷却约 60s，故间隔取 3s：既能自动接上，又不会自我加剧限流。
-                main.postDelayed(this, 3000);
+                // 实测账号冷却约 60s，间隔可在设置里调（默认 3s）：既能自动接上，又不会自我加剧限流。
+                int iv = appContext != null ? PkSettings.getRetryInterval(appContext) : 3;
+                main.postDelayed(this, iv * 1000);
             }
         };
         main.postDelayed(retryLoop, 500);
@@ -726,6 +862,18 @@ public class PkHelper {
         try {
             lastRecvCount = 0;
             setStatus(activity, "自动中·点此关闭", "");
+            // 注入设置项：单局时间 → 每题回调延迟（delay = 目标耗时/题数 - H5 固定开销约50ms）；
+            // 人类化笔记开关/强度 → JS 侧 buildStrokes 抖动与步进节奏
+            int qn = engine.getQuestionCount() > 0 ? engine.getQuestionCount() : 30;
+            int perQ = PkSettings.getRoundTime(activity) * 1000 / qn;
+            int pkDelay = Math.max(10, perQ - 50);
+            int pkJit = Math.max(5, Math.min(300, pkDelay / 2));
+            evalJs(currentWebView,
+                    "window.__pkDelay=" + pkDelay + ";window.__pkJit=" + pkJit
+                            + ";window.__pkHuman=" + (PkSettings.getHumanStroke(activity) ? 1 : 0)
+                            + ";window.__pkInt=" + PkSettings.getIntensity(activity) + ";", false);
+            android.util.Log.i("PkHelper", "settings delay=" + pkDelay + " jit=" + pkJit
+                    + " roundTime=" + PkSettings.getRoundTime(activity) + "s q=" + qn);
             evalJs(currentWebView, AUTO_ANSWER_JS, false);
             android.util.Log.i("PkHelper", "AUTO_ANSWER_JS injected");
             if (currentWebView != null) {
@@ -997,11 +1145,13 @@ public class PkHelper {
     private static void dumpRequest(Request req) {
         try {
             android.util.Log.i("PkHelper", "REQ " + req.method() + " " + req.url());
+            capture("REQ " + req.method() + " " + req.url());
             okhttp3.Headers hs = req.headers();
             for (int i = 0; i < hs.size(); i++) {
                 String v = hs.value(i);
                 if (v != null && v.length() > 180) v = v.substring(0, 180) + "...";
                 android.util.Log.i("PkHelper", "REQH " + hs.name(i) + "=" + v);
+                capture("REQH " + hs.name(i) + ": " + v);
             }
             RequestBody rb = req.body();
             if (rb != null) {
@@ -1011,7 +1161,9 @@ public class PkHelper {
                     long size = buf.size();
                     byte[] data = size > 600 ? new byte[600] : new byte[(int) size];
                     buf.readFully(data);
-                    android.util.Log.i("PkHelper", "REQBODY len=" + size + " b64=" + android.util.Base64.encodeToString(data, android.util.Base64.NO_WRAP));
+                    String b64 = android.util.Base64.encodeToString(data, android.util.Base64.NO_WRAP);
+                    android.util.Log.i("PkHelper", "REQBODY len=" + size + " b64=" + b64);
+                    capture("REQBODY len=" + size + " b64=" + b64);
                 } catch (Throwable t5) {
                     android.util.Log.i("PkHelper", "REQBODY err " + t5);
                 }
@@ -1047,7 +1199,7 @@ public class PkHelper {
                 android.util.Log.i("PkHelper", "sys aid err " + t3);
             }
             try {
-                Class<?> i3c = Class.forName("ds.i3");
+                Class<?> i3c = Class.forName("nr.i3");
                 Object i3 = i3c.getMethod("c").invoke(null);
                 String uuid = (String) i3c.getMethod("d").invoke(i3);
                 String aid = (String) i3c.getMethod("a").invoke(i3);
@@ -1091,6 +1243,11 @@ public class PkHelper {
     private static void toast(Activity a, String msg) {
         try {
             android.util.Log.i("PkHelper", "TOAST " + msg);
+            // 设置项「界面提示」关闭时不弹 Toast（logcat 与落盘日志不受影响）
+            Context gateC = (a != null && !a.isFinishing()) ? a.getApplicationContext() : appContext;
+            if (gateC != null && !PkSettings.getToastEnabled(gateC)) {
+                return;
+            }
             // 页面可能已 finish（如匹配失败后返回），此时用 Application context 兜底，
             // 否则 Toast 静默失败，用户会以为"点了没反应"
             Context c = null;

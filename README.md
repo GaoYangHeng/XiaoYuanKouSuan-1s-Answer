@@ -2,7 +2,8 @@
 
 作者写的唯一一句话：这个工程是AI自己逆向的，全程我只当了监控，也就花了大约两周吧，反正有AI辅助还是挺简单的，之前他上传了一堆测试脚本，在介绍文件和技术文档里可能会有提到，但是那些文件我觉得有一点冗余，我给他删了，但那些都是测试的脚本，不是特别重要。就这么多，说完了
 
-> 目标应用：`com.fenbi.android.leo`（v52 / 3.141.1）
+> 目标应用：`com.fenbi.android.leo`（当前成品 **3.143.1**；旧版 v52 / 3.141.1 仍保留在 `release/`）
+> 版本变更见 [CHANGELOG.md](CHANGELOG.md)
 > 完整逆向产物：反编译源码、Native 分析脚本、改包工程、成品 APK 与技术报告。
 
 ---
@@ -11,12 +12,17 @@
 
 **不想研究原理、只想拿到成品** —— 直接下载安装：
 
-### [`release/xiaoyuan-kousuan-1s-answer-v52.apk`](release/xiaoyuan-kousuan-1s-answer-v52.apk)（约 82 MB）
+### [`release/xiaoyuan-kousuan-1s-answer-3.143.1.apk`](release/xiaoyuan-kousuan-1s-answer-3.143.1.apk)（约 87 MB · 基于官方 3.143.1 · 新增设置面板）
 
 ```bash
 adb uninstall com.fenbi.android.leo      # 先卸载官方版（签名不同，无法覆盖安装）
-adb install -r release/xiaoyuan-kousuan-1s-answer-v52.apk
+adb install -r release/xiaoyuan-kousuan-1s-answer-3.143.1.apk
 ```
+
+悬浮按钮下方有「⚙ 设置」小条，可调 **单局时间 / 人类化笔记 / 笔记强度 / 重试间隔 / 自动开启 / 提示开关**，
+右上角 ✕、返回键、点窗口外均可关闭 —— 完整改动见 [CHANGELOG.md](CHANGELOG.md)。
+
+**旧版仍保留可用**：[`release/xiaoyuan-kousuan-1s-answer-v52.apk`](release/xiaoyuan-kousuan-1s-answer-v52.apk)（基于官方 3.141.1，约 82 MB）
 
 装完必读三条：
 
@@ -50,7 +56,7 @@ flowchart TB
     subgraph PLAY["🎮 运行期（每一局）"]
         direction TB
         A(["题目下发<br/>答案随题到达"]) --> B["① 拦截 XHR / fetch<br/>抓题目响应"]
-        B --> C["② 解密题目<br/>ds.i4.a.a()"]
+        B --> C["② 解密题目<br/>i4.a.a()"]
         C --> D["③ 合成笔迹<br/>像人写的轨迹"]
         D --> E["④ 劫持识别桥<br/>直接回传正确答案"]
         E --> F{"⑤ 本地判定<br/>Intrinsics.areEqual"}

@@ -6,7 +6,7 @@ import org.json.JSONObject;
 
 /**
  * 比大小 PK 自动答题引擎。
- * 复用进程内 ds.i4 的 a()（解密）/ c()（加密），无需自己实现 native。
+ * 复用进程内 nr.i4 的 a()（解密）/ c()（加密），无需自己实现 native。
  */
 public class PkAnswerEngine {
 
@@ -36,7 +36,7 @@ public class PkAnswerEngine {
     }
 
     /**
-     * 处理 JS 钩子捕获到的 match 响应文本：先按明文 JSON 试，失败再按密文走 ds.i4 解密。
+     * 处理 JS 钩子捕获到的 match 响应文本：先按明文 JSON 试，失败再按密文走 nr.i4 解密。
      */
     public void parseCaptured(String body) {
         try {
@@ -50,7 +50,7 @@ public class PkAnswerEngine {
                 // JS 钩子对 arraybuffer 响应的 base64 编码：解出原始密文字节
                 byte[] raw = android.util.Base64.decode(body.substring(5), android.util.Base64.DEFAULT);
                 android.util.Log.i("PkHelper", "AB64 rawLen=" + raw.length + " head=" + new String(raw, 0, Math.min(32, raw.length), "UTF-8"));
-                byte[] plain = ds.i4.a.a(raw);
+                byte[] plain = nr.i4.a.a(raw);
                 examVO = tryExtract(plain);
                 if (examVO == null) {
                     examVO = tryExtract(raw);
@@ -63,10 +63,10 @@ public class PkAnswerEngine {
                 }
             }
             if (examVO == null) {
-                byte[] plain = ds.i4.a.a(body.getBytes("UTF-8"));
+                byte[] plain = nr.i4.a.a(body.getBytes("UTF-8"));
                 if (plain == null) {
                     byte[] raw = android.util.Base64.decode(body, android.util.Base64.DEFAULT);
-                    plain = ds.i4.a.a(raw);
+                    plain = nr.i4.a.a(raw);
                 }
                 examVO = tryExtract(plain);
             }
@@ -120,9 +120,9 @@ public class PkAnswerEngine {
             }
             String dataStr = root.optString("data", "");
             if (dataStr.length() > 20) {
-                byte[] p2 = ds.i4.a.a(dataStr.getBytes("UTF-8"));
+                byte[] p2 = nr.i4.a.a(dataStr.getBytes("UTF-8"));
                 if (p2 == null) {
-                    p2 = ds.i4.a.a(android.util.Base64.decode(dataStr, android.util.Base64.DEFAULT));
+                    p2 = nr.i4.a.a(android.util.Base64.decode(dataStr, android.util.Base64.DEFAULT));
                 }
                 if (p2 != null) {
                     JSONObject r2 = new JSONObject(new String(p2, "UTF-8"));
@@ -140,7 +140,7 @@ public class PkAnswerEngine {
 
     public JSONObject handleEncryptedResponse(byte[] encryptedBody) {
         try {
-            byte[] plain = ds.i4.a.a(encryptedBody);
+            byte[] plain = nr.i4.a.a(encryptedBody);
             if (plain == null) {
                 android.util.Log.i("PkHelper", "decrypt plain=null");
                 return null;
@@ -156,9 +156,9 @@ public class PkAnswerEngine {
                     JSONObject r2 = new JSONObject(plainStr);
                     String dataStr = r2.optString("data", "");
                     if (dataStr.length() > 20) {
-                        byte[] p2 = ds.i4.a.a(dataStr.getBytes("UTF-8"));
+                        byte[] p2 = nr.i4.a.a(dataStr.getBytes("UTF-8"));
                         if (p2 == null) {
-                            p2 = ds.i4.a.a(android.util.Base64.decode(dataStr, android.util.Base64.DEFAULT));
+                            p2 = nr.i4.a.a(android.util.Base64.decode(dataStr, android.util.Base64.DEFAULT));
                         }
                         if (p2 != null) {
                             examVO = new JSONObject(new String(p2, "UTF-8")).optJSONObject("examVO");
@@ -265,11 +265,11 @@ public class PkAnswerEngine {
         return Base64.encodeToString(enc, Base64.NO_WRAP);
     }
 
-    /** 与官方 H5 一致：返回 ds.i4 加密后的原始字节（PUT body 直接使用，不再包 base64） */
+    /** 与官方 H5 一致：返回 nr.i4 加密后的原始字节（PUT body 直接使用，不再包 base64） */
     public byte[] encryptToBytes(JSONObject card) {
         try {
             byte[] json = card.toString().getBytes("UTF-8");
-            byte[] enc = ds.i4.a.c(json);
+            byte[] enc = nr.i4.a.c(json);
             if (enc == null) {
                 android.util.Log.i("PkHelper", "encryptToBytes enc=null");
             } else {

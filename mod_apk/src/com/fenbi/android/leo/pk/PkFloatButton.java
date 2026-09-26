@@ -11,14 +11,18 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
- * 比大小 PK 页的可拖动悬浮按钮：主按钮「1秒答题」+ 副按钮「复制报错」。
- * 长按拖动改变位置，单击主按钮触发答题，单击副按钮复制最近一次报错信息。
+ * 比大小 PK 页的可拖动悬浮按钮：主按钮「1秒答题」+ 副按钮「复制报错」+ 底部设置小条。
+ * 长按拖动改变位置，单击主按钮触发答题，单击副按钮复制最近一次报错信息，
+ * 单击底部小条弹出设置窗口（PkSettingsDialog）。
  */
 public class PkFloatButton {
     private final Activity activity;
     private final LinearLayout container;
     private final TextView answerBtn;
     private final TextView copyBtn;
+    /** 设置入口小条（位于按钮组下方） */
+    private final TextView settingsBar;
+    private final Runnable onSettings;
     /** 匹配失败时显示的横条：文案 + 取消按钮 */
     private final LinearLayout retryBar;
     private final TextView retryText;
@@ -30,9 +34,10 @@ public class PkFloatButton {
     private boolean dragging;
     private static final int CLICK_SLOP = 12;
 
-    public PkFloatButton(Activity activity, Runnable onClick) {
+    public PkFloatButton(Activity activity, Runnable onClick, Runnable onSettings) {
         this.activity = activity;
         this.onClick = onClick;
+        this.onSettings = onSettings;
 
         this.container = new LinearLayout(activity);
         container.setOrientation(LinearLayout.VERTICAL);
@@ -41,9 +46,11 @@ public class PkFloatButton {
 
         this.answerBtn = makeButton("1秒答题", 0xCCFF5722, 14, dp(14), dp(10));
         this.copyBtn = makeButton("复制报错", 0xCC333333, 12, dp(10), dp(6));
+        this.settingsBar = makeButton("⚙ 设置", 0xAA1A2327, 10, dp(20), dp(3));
 
         container.addView(answerBtn);
         container.addView(copyBtn);
+        container.addView(settingsBar);
 
         // 匹配失败横条（默认隐藏）
         this.retryBar = new LinearLayout(activity);
@@ -122,6 +129,8 @@ public class PkFloatButton {
             if (onClick != null) onClick.run();
         } else if (y >= copyBtn.getTop() && y <= copyBtn.getBottom()) {
             PkHelper.copyError(activity);
+        } else if (y >= settingsBar.getTop() && y <= settingsBar.getBottom()) {
+            if (onSettings != null) onSettings.run();
         } else if (retryBar.getVisibility() == View.VISIBLE
                 && y >= retryBar.getTop() && y <= retryBar.getBottom()) {
             // 横条内：只有右侧"取消"热区响应，其余区域不误触

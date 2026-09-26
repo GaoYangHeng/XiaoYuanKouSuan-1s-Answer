@@ -6,9 +6,9 @@ import shutil
 BT = r"F:\Android\Sdk\build-tools\30.0.3"
 PLATFORM = r"F:\Android\Sdk\platforms\android-34\android.jar"
 WORK = r"f:\traework_main workspace\xiaoyuan-kousuan-re\mod_apk"
-APK = r"f:\traework_main workspace\xiaoyuan-kousuan-re\apk\com.fenbi.android.leo.apk"
+APK = r"f:\traework_main workspace\xiaoyuan-kousuan-re\apk\official_3.143.1.apk"
 KEYSTORE = r"f:\traework_main workspace\xiaoyuan-kousuan-re\crack_sign\testapp\key.jks"
-SO_PATCHED = r"f:\traework_main workspace\xiaoyuan-kousuan-re\crack_sign\libRequestEncoder_patched.so"
+SO_PATCHED = r"f:\traework_main workspace\xiaoyuan-kousuan-re\mod_apk\work\libRequestEncoder_patched_new.so"
 
 SMALI_LIB = r"F:\Android\Sdk\cmdline-tools\latest\lib\external\com\android\tools\smali"
 DEXLIB_CP = ";".join([
@@ -59,6 +59,8 @@ core_srcs = [
     os.path.join(WORK, "src", "com", "fenbi", "android", "leo", "pk", "PkFloatButton.java"),
     os.path.join(WORK, "src", "com", "fenbi", "android", "leo", "pk", "PkAnswerEngine.java"),
     os.path.join(WORK, "src", "com", "fenbi", "android", "leo", "pk", "PkHelper.java"),
+    os.path.join(WORK, "src", "com", "fenbi", "android", "leo", "pk", "PkSettings.java"),
+    os.path.join(WORK, "src", "com", "fenbi", "android", "leo", "pk", "PkSettingsDialog.java"),
 ]
 cp = PLATFORM + ";" + os.path.join(WORK, "stub_classes")
 run(["javac", "-encoding", "UTF-8", "--release", "8", "-classpath", cp, "-d", os.path.join(WORK, "classes")] + core_srcs)
@@ -111,13 +113,10 @@ run(["java", "-cp", DEXLIB_CP + ";" + out_dir, "PatchDex4",
      os.path.join(WORK, "work", "classes6.dex"),
      os.path.join(WORK, "work", "classes6_patched.dex")])
 
-# 6.6 运行 PatchDex6（classes2 强制隐私Gate1 + classes6 强制隐私Gate2）
+# 6.6 隐私门（3.143.1 两个门都在 classes2：Leg/n.b + xc/c.a；classes6 无门不再跑 D6）
 run(["java", "-cp", DEXLIB_CP + ";" + out_dir, "PatchDex6",
      os.path.join(WORK, "work", "classes2.dex"),
      os.path.join(WORK, "work", "classes2_final.dex")])
-run(["java", "-cp", DEXLIB_CP + ";" + out_dir, "PatchDex6",
-     os.path.join(WORK, "work", "classes6_patched.dex"),
-     os.path.join(WORK, "work", "classes6_final.dex")])
 
 # 7. 复制原 APK，替换 classes3.dex / classes7.dex + 添加 classes9.dex
 patched_apk = os.path.join(WORK, "work", "patched_unsigned.apk")
@@ -133,7 +132,7 @@ with zipfile.ZipFile(APK, "r") as zin, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEF
             data = open(os.path.join(WORK, "work", "classes3_final.dex"), "rb").read()
             print("replaced classes3.dex")
         elif item.filename == "classes6.dex":
-            data = open(os.path.join(WORK, "work", "classes6_final.dex"), "rb").read()
+            data = open(os.path.join(WORK, "work", "classes6_patched.dex"), "rb").read()
             print("replaced classes6.dex")
         elif item.filename == "classes7.dex":
             data = open(os.path.join(WORK, "work", "classes7_patched.dex"), "rb").read()
